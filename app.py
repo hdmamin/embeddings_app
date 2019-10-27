@@ -133,33 +133,16 @@ def update_analogy(a, b, c):
               [Input('plot_selector', 'value')])
 def update_plot(words):
     # Only run func when user submits a word.
-    print(words)
     if not words.endswith('\n'):
         return
 
-    words = words.split()
-    print('\n\n\nWORDS', words)
-    # if all(word not in emb for word in words):
-    #     return
-
-    # TESTING 1
-    # arr = np.array([emb.vec_2d(word) for word in words])
-    # print('post list comp')
-
-    # TESTING 2
-    # labels, arr = map(list, zip(*w2v.items()))
-    # arr = np.array(arr)
-    # print(labels)
-    # print(arr)
-    # TESTING
-
+    # Accumulate trace for each word (with a single trace, we lose the legend).
     traces = []
-    for word in words:
+    for word in words.split():
         vec = emb.vec_2d(word)
         if vec is None:
             continue
 
-        print(vec)
         # Confirmed word in vocab so we add a new trace to the list.
         trace = go.Scatter(x=[vec[0]],
                            y=[vec[1]],
@@ -170,16 +153,6 @@ def update_plot(words):
                            hoverinfo='x+y+text')
         traces.append(trace)
 
-    # trace = [go.Scatter(x=[emb.vec_2d(word)[0]],
-    #                     y=[emb.vec_2d(word)[1]],
-    #                     mode='markers',
-    #                     marker={'size': 12},
-    #                     name=word,
-    #                     text=word,
-    #                     hoverinfo='x+y+text')
-    #          for word in words
-    #          if word in emb
-    #          ]
     layout = go.Layout(showlegend=True)
     fig = go.Figure(data=traces,
                     layout=layout)
