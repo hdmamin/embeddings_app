@@ -12,8 +12,9 @@ CSS = ['https://codepen.io/Hmamin/pen/OJJgbBL.css']
 app = dash.Dash(__name__, external_stylesheets=CSS)
 app.config['suppress_callback_exceptions'] = True
 server = app.server
-emb = Embeddings.from_glove_file('/Users/hmamin/data/glove/glove.6B.50d.txt')
-emb.save('emb.pkl')
+emb = Embeddings.from_glove_file('/Users/hmamin/data/glove/glove.6B.50d.txt',
+                                 50_000)
+# emb = Embeddings.from_pickle('emb.pkl')
 
 
 ###############################################################################
@@ -23,7 +24,7 @@ div_similar = html.Div([
     html.H4('Input Word'),
     dcc.Input(id='input', size='23'),
     dcc.RadioItems(options=[{'label': x, 'value': x}
-                             for x in ['euclidean', 'cosine']],
+                            for x in ['euclidean', 'cosine']],
                    value='euclidean',
                    id='distance_selector'),
     html.H4('Similar Words'),
@@ -131,9 +132,19 @@ def update_analogy(a, b, c):
 @app.callback(Output('plot', 'children'),
               [Input('plot_selector', 'value')])
 def update_plot(words):
+    # Only run func when user submits a word.
+    print(words)
+    if not words.endswith('\n'):
+        return
+
     words = words.split()
-    arr = np.array([emb.vec_2d(word) for word in words])
-    print(arr)
+    print('\n\n\nWORDS', words)
+    # if all(word not in emb for word in words):
+    #     return
+
+    # TESTING 1
+    # arr = np.array([emb.vec_2d(word) for word in words])
+    # print('post list comp')
 
     # TESTING 2
     # labels, arr = map(list, zip(*w2v.items()))
@@ -142,22 +153,35 @@ def update_plot(words):
     # print(arr)
     # TESTING
 
-    # trace = go.Scatter(x=arr[:, 0],
-    #                    y=arr[:, 1],
-    #                    mode='markers',
-    #                    marker=dict(size=12),
-    #                    text=words)
-    trace = [go.Scatter(x=[emb.vec_2d(word)[0]],
-                        y=[emb.vec_2d(word)[1]],
-                        mode='markers',
-                        marker={'size': 12},
-                        name=word,
-                        text=word,
-                        hoverinfo='x+y+text')
-             for word in words
-             if word in emb]
+    traces = []
+    for word in words:
+        vec = emb.vec_2d(word)
+        if vec is None:
+            continue
+
+        print(vec)
+        # Confirmed word in vocab so we add a new trace to the list.
+        trace = go.Scatter(x=[vec[0]],
+                           y=[vec[1]],
+                           mode='markers',
+                           marker={'size': 12},
+                           name=word,
+                           text=word,
+                           hoverinfo='x+y+text')
+        traces.append(trace)
+
+    # trace = [go.Scatter(x=[emb.vec_2d(word)[0]],
+    #                     y=[emb.vec_2d(word)[1]],
+    #                     mode='markers',
+    #                     marker={'size': 12},
+    #                     name=word,
+    #                     text=word,
+    #                     hoverinfo='x+y+text')
+    #          for word in words
+    #          if word in emb
+    #          ]
     layout = go.Layout(showlegend=True)
-    fig = go.Figure(data=trace,
+    fig = go.Figure(data=traces,
                     layout=layout)
     return dcc.Graph(figure=fig)
 

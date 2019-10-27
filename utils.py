@@ -4,15 +4,16 @@ import pickle
 from sklearn.decomposition import PCA
 import zlib
 
+from htools import htimer
+
 
 class Embeddings:
     """Word Embeddings object. Stores data mapping word to index, index to
     word, and word to vector.
     """
 
-    def __init__(self, w2i, w2vec):
+    def __init__(self, w2i, w2vec, mat=None, mat_2d=None):
         """
-
         Parameters
         ----------
         w2i: dict[str, int]
@@ -25,11 +26,27 @@ class Embeddings:
         self.w2vec = w2vec
         self.vocab_size = len(w2i)
         self.dim = len(list(w2vec.values())[0])
-        self.mat = self._build_embedding_matrix()
-        self._mat_2d = None
+        self.mat = mat if mat is not None else self._build_embedding_matrix()
+        self._mat_2d = mat_2d
 
     @classmethod
+    @htimer
     def from_glove_file(cls, path, max_words=float('inf')):
+        """Create a new Embeddings object from a raw csv file containing the
+        GloVe vectors.
+
+        Parameters
+        ----------
+        path: str
+            Location of csv file containing GloVe vectors.
+        max_words: int, float
+            Set maximum number of words to read in from file. This can be used
+            during development to reduce wait times when loading data.
+
+        Returns
+        -------
+        Embeddings: Newly instantiated object.
+        """
         w2i = dict()
         w2vec = dict()
         with open(path, 'r') as f:
@@ -41,22 +58,70 @@ class Embeddings:
         return cls(w2i, w2vec)
 
     @classmethod
+    @htimer
     def from_pickle(cls, path):
+        """If an Embeddings object previously saved its data in a pickle file,
+        loading it that way can avoid repeated computation.
+
+        Parameters
+        ----------
+        path: str
+            Location of pickle file.
+
+        Returns
+        -------
+        Embeddings: Newly instantiated object using the data that was stored in
+            the pickle file.
+        """
         with open(path, 'rb') as f:
-            data = pickle.load(f)
-        return zlib.decompress(data)
+            data = zlib.decompress(pickle.load(f))
+        return cls(**pickle.loads(data))
 
     def _build_embedding_matrix(self):
+        """Built a matrix of embeddings using the previously defined w2vec and
+        w2idx.
+
+        Returns
+        -------
+        np.array: Matrix of embeddings where each row corresponds to a single
+            word.
+        """
         mat = np.zeros((self.vocab_size, self.dim))
         for word, i in self.w2i.items():
             mat[i] = self.vec(word)
         return mat
 
     def vec(self, word):
-        return self.w2vec.get(word.lower(), np.zeros(self.dim))
+        """Look up the embedding for a given word. Return None if not found.
+
+        Parameters
+        ----------
+        word: str
+            Input word to look up embedding for.
+
+        Returns
+        -------
+        np.array: Embedding corresponding to the input word. If word not in
+            vocab, return None.
+        """
+        return self.w2vec.get(word.lower(), None)
 
     def vec_2d(self, word):
-        return self.mat_2d()[self[word]]
+        """Look up the compressed embedding for a word (PCA was used to shrink
+        dimensionality to 2). Return None if the word is not present in vocab.
+
+        Parameters
+        ----------
+        word: str
+            Input work to look up.
+
+        Returns
+        -------
+        np.array: Compressed embedding of length 2. None if not found.
+        """
+        idx = self.w2i.get(word)
+        if idx is not None:
+            return self.mat_2d()[idx]
 
     def _distances(self, vec, distance='euclidean'):
         if distance == 'euclidean':
@@ -94,6 +159,8 @@ class Embeddings:
         # If word is passed in, check that it's in vocab, then lookup vector.
         if word is not None and word not in self:
             return None
+        # At this point, either vec was passed in or word was passed in and is
+        # present in vocab.
         if vec is None:
             vec = self.vec(word)
 
@@ -102,10 +169,27 @@ class Embeddings:
         return {self.i2w[i]: round(dists[i], digits) for i in idx}
 
     def analogy(self, a, b, c, **kwargs):
-        if not all(arg in self for arg in [a, b, c]):
-            return None
+        """Fill in the analogy: a is to b as c is to ___.
 
-        vec = self.vec(b) - self.vec(a) + self.vec(c)
+        Parameters
+        ----------
+        a: str
+            First word in analogy.
+        b: str
+            Second word in analogy.
+        c: str
+            Third word in analogy.
+        kwargs
+
+        Returns
+        -------
+        str: Word that would complete the analogy.
+        """
+        # If any words missing from vocab, arithmetic w/ None will throw error.
+        try:
+            vec = self.vec(b) - self.vec(a) + self.vec(c)
+        except TypeError:
+            return None
         return self.nearest_neighbors(vec=vec, **kwargs)
 
     def mat_2d(self):
@@ -117,12 +201,17 @@ class Embeddings:
         np.array: Embedding matrix after dimension reduction. Each vector has
             length 2.
         """
+        # TODO: MAYBE CLEAN UP IF/ELSE LOGIC HERE AFTER DONE DEBUGGING.
+
         # This may be a np.array so truth value is ambiguous.
         if self._mat_2d is not None:
+            print('returning existing mat2d')
             return self._mat_2d
 
+        print(f'generating new mat2d: _mat_2d={self._mat_2d} END')
         pca = PCA(n_components=2)
         self._mat_2d = pca.fit_transform(self.mat)
+        print(f'after fitting pca: _mat_2d={self._mat_2d} END')
         return self._mat_2d
 
     @staticmethod
@@ -157,7 +246,9 @@ class Embeddings:
                     (self.norm(vec1) * self.norm(vec2)))
 
     def save(self, path, verbose=True):
-        """
+        """Save data to a compressed pickle file. This reduces the amount of
+        space needed for storage (the csv is much larger) and can let us
+        avoid running PCA and building the embedding matrix again.
 
         Parameters
         ----------
@@ -169,8 +260,12 @@ class Embeddings:
         -------
 
         """
+        data = dict(w2i=self.w2i,
+                    w2vec=self.w2vec,
+                    mat=self.mat,
+                    mat_2d=self.mat_2d())
         with open(path, 'wb') as f:
-            pickle.dump(zlib.compress(pickle.dumps(self)), f)
+            pickle.dump(zlib.compress(pickle.dumps(data)), f)
         if verbose:
             print(f'Embeddings object saved to {path}.')
 
