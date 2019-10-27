@@ -5,8 +5,6 @@ import pickle
 from sklearn.decomposition import PCA
 import zlib
 
-from htools import htimer
-
 
 class Embeddings:
     """Word Embeddings object. Stores data mapping word to index, index to
@@ -37,7 +35,6 @@ class Embeddings:
         self._mat_2d = mat_2d
 
     @classmethod
-    @htimer
     def from_glove_file(cls, path, max_words=float('inf')):
         """Create a new Embeddings object from a raw csv file containing the
         GloVe vectors.
@@ -65,7 +62,6 @@ class Embeddings:
         return cls(w2i, w2vec)
 
     @classmethod
-    @htimer
     def from_pickle(cls, path):
         """If an Embeddings object previously saved its data in a pickle file,
         loading it that way can avoid repeated computation.
