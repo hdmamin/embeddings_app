@@ -201,17 +201,10 @@ class Embeddings:
         np.array: Embedding matrix after dimension reduction. Each vector has
             length 2.
         """
-        # TODO: MAYBE CLEAN UP IF/ELSE LOGIC HERE AFTER DONE DEBUGGING.
-
         # This may be a np.array so truth value is ambiguous.
-        if self._mat_2d is not None:
-            print('returning existing mat2d')
-            return self._mat_2d
-
-        print(f'generating new mat2d: _mat_2d={self._mat_2d} END')
-        pca = PCA(n_components=2)
-        self._mat_2d = pca.fit_transform(self.mat)
-        print(f'after fitting pca: _mat_2d={self._mat_2d} END')
+        if self._mat_2d is None:
+            pca = PCA(n_components=2)
+            self._mat_2d = pca.fit_transform(self.mat)
         return self._mat_2d
 
     @staticmethod

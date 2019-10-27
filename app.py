@@ -143,11 +143,10 @@ def update_plot(words):
     print('\n\n\nWords', words)
     traces = []
 
-    # Only add traces when user submits a new word, otherwise new callbacks
-    # will start before previous ones complete and PCA will be run repeatedly.
+    # Only add traces when user submits a new word, otherwise callbacks will
+    # overlap and PCA will be run repeatedly.
+    # A new trace is used for each word so the legend can label each point.
     if words.endswith('\n'):
-
-        # New trace for each word (with a single trace, we lose the legend).
         for word in words.split():
             vec = emb.vec_2d(word)
             print('vec', vec)
@@ -164,7 +163,6 @@ def update_plot(words):
                                hoverinfo='x+y+text')
             traces.append(trace)
 
-    # return traces
     return go.Figure(data=traces,
                      layout=go.Layout(showlegend=True))
 
