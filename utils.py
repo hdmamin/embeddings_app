@@ -10,28 +10,25 @@ class Embeddings:
     """Word Embeddings object. Stores data mapping word to index, index to
     word, and word to vector.
     """
+    __slots__ = ('w2i', 'i2w', 'vocab_size', 'dim', 'mat', '_mat_2d')
 
-    def __init__(self, w2i, w2vec, mat=None, mat_2d=None):
+    def __init__(self, w2i, mat, mat_2d=None):
         """
         Parameters
         ----------
         w2i: dict[str, int]
             Dictionary mapping word to its index in the vocabulary.
-        w2vec: dict[str, np.array]
-            Dictionary mapping word to its embedding.
         mat: np.array
             Matrix of embeddings, where row i corresponds to word i in vocab.
-            If not passed in, it will be generated from w2vec and w2i.
         mat_2d: np.array
             Matrix output of PCA after compressing mat to vectors of length 2.
             If None, it will be computed from mat.
         """
         self.w2i = w2i
         self.i2w = [w for w, i in sorted(self.w2i.items(), key=lambda x: x[1])]
-        self.w2vec = w2vec
         self.vocab_size = len(w2i)
-        self.dim = len(list(w2vec.values())[0])
-        self.mat = mat if mat is not None else self._build_embedding_matrix()
+        self.dim = mat.shape[1]
+        self.mat = mat
         self._mat_2d = mat_2d
 
     @classmethod
@@ -52,14 +49,16 @@ class Embeddings:
         Embeddings: Newly instantiated object.
         """
         w2i = dict()
-        w2vec = dict()
+        mat = []
         with open(path, 'r') as f:
             for i, line in enumerate(f):
-                if i >= max_words: break  # Faster testing
+                # Faster testing
+                if i >= max_words:
+                    break
                 word, *nums = line.strip().split()
                 w2i[word] = i
-                w2vec[word] = np.array(nums, dtype=float)
-        return cls(w2i, w2vec)
+                mat.append(np.array(nums, dtype=float))
+        return cls(w2i, np.array(mat))
 
     @classmethod
     def from_pickle(cls, path):
@@ -96,27 +95,12 @@ class Embeddings:
         None
         """
         data = dict(w2i=self.w2i,
-                    w2vec=self.w2vec,
                     mat=self.mat,
                     mat_2d=self.mat_2d())
         with open(path, 'wb') as f:
             pickle.dump(zlib.compress(pickle.dumps(data)), f)
         if verbose:
             print(f'Embeddings object saved to {path}.')
-
-    def _build_embedding_matrix(self):
-        """Built a matrix of embeddings using the previously defined w2vec and
-        w2idx.
-
-        Returns
-        -------
-        np.array: Matrix of embeddings where each row corresponds to a single
-            word.
-        """
-        mat = np.zeros((self.vocab_size, self.dim))
-        for word, i in self.w2i.items():
-            mat[i] = self.vec(word)
-        return mat
 
     def vec(self, word):
         """Look up the embedding for a given word. Return None if not found.
@@ -131,7 +115,9 @@ class Embeddings:
         np.array: Embedding corresponding to the input word. If word not in
             vocab, return None.
         """
-        return self.w2vec.get(word.lower(), None)
+        idx = self[word]
+        if idx is not None:
+            return self.mat[idx]
 
     def vec_2d(self, word):
         """Look up the compressed embedding for a word (PCA was used to shrink
@@ -146,7 +132,7 @@ class Embeddings:
         -------
         np.array: Compressed embedding of length 2. None if not found.
         """
-        idx = self.w2i.get(word)
+        idx = self[word]
         if idx is not None:
             return self.mat_2d()[idx]
 
@@ -329,9 +315,9 @@ class Embeddings:
         dict[str, float]: Dictionary mapping word to distance from the average
             of the input words' vectors.
         """
-        print(args)
+        print('CBOW_NEIGHBORS args:', args)
         vec_avg = self.cbow(*args)
-        print(vec_avg)
+        print('CBOW_NEIGHBORS vec_avg:', vec_avg)
         # TODO: Maybe need error checking here.
         return self._nearest_neighbors(vec_avg, **kwargs, skip_first=False)
 

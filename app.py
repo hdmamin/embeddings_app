@@ -12,10 +12,8 @@ CSS = ['https://codepen.io/Hmamin/pen/OJJgbBL.css']
 app = dash.Dash(__name__, external_stylesheets=CSS)
 app.config['suppress_callback_exceptions'] = True
 server = app.server
-emb = Embeddings.from_glove_file('/Users/hmamin/data/glove/glove.6B.50d.txt',
-                                 10_000)
-# emb = Embeddings.from_pickle('emb.pkl')
-
+# emb = Embeddings.from_glove_file('/Users/hmamin/data/glove/glove.6B.50d.txt')
+emb = Embeddings.from_pickle('emb.pkl')
 
 ###############################################################################
 # App components
@@ -241,7 +239,7 @@ def update_cbow(words, distance):
         return get_empty_table_data(['word'])
 
     data = emb.cbow_neighbors(*words.split(), distance=distance)
-    print(data, '\n\n\n\n')
+    print('UPDATE_CBOW data:', data, '\n\n\n\n')
     return [{'Word': word} for word in data.keys()]
 
 
