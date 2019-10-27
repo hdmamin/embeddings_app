@@ -46,20 +46,28 @@ div_detypo = html.Div(html.H2('Spell Check'))
 
 div_cbow = html.Div(html.H2('Bag of Words'))
 
-div_plot = html.Div([html.H2('2D Projection'),
+div_plot = html.Div([
+    html.H2('2D Projection'),
                      # dcc.Dropdown(options=[{'label': k, 'value': k}
                      #                       for k in emb],
                      #              multi=True,
                      #              id='plot_selector'),
-                     dcc.Markdown('Enter words in the text area below, '
-                                  'separated by spaces. If a word doesn\'t '
-                                  'show up on the chart, it means it\'s not '
-                                  'present in our corpus.'),
-                     dcc.Textarea(value='',
-                                  style={'width': '100%'},
-                                  id='plot_selector'),
-                     html.Div(id='plot')
-                     ])
+    dcc.Markdown('Type one or more words in the text area below. Hitting the '
+                 '`enter` key will update the chart (you can do this after '
+                 'each word, or type multiple space-separated words and '
+                 'submit at the end). If a word doesn\'t show up on the plot, '
+                 'it means it\'s not present in our embedding vocabulary.'),
+    dcc.Textarea(value='',
+                 style={'width': '100%'},
+                 id='plot_selector'),
+    dcc.Graph(figure=go.Figure(data=[],
+                               layout=go.Layout(showlegend=True)),
+              id='plot'),
+    html.Div('Note: these axes don\'t correspond to any particular dimension '
+             'that we can interpret. They are simply the result of using PCA '
+             'to reduce the embedding dimensionality to 2.')
+])
+
 
 ###############################################################################
 # Main tab layout
@@ -76,7 +84,7 @@ app.layout = html.Div([html.H1('Fun With Embeddings'),
                                                   value='detypo'),
                                           dcc.Tab(label='CBOW',
                                                   value='cbow'),
-                                          dcc.Tab(label='2D Projection',
+                                          dcc.Tab(label='Plot',
                                                   value='plot')]),
                        html.Div(id='content_div')],
                       className='container')
@@ -129,34 +137,36 @@ def update_analogy(a, b, c):
     return [{'Word': word} for word in data.keys()]
 
 
-@app.callback(Output('plot', 'children'),
+@app.callback(Output('plot', 'figure'),
               [Input('plot_selector', 'value')])
 def update_plot(words):
-    # Only run func when user submits a word.
-    if not words.endswith('\n'):
-        return
-
-    # Accumulate trace for each word (with a single trace, we lose the legend).
+    print('\n\n\nWords', words)
     traces = []
-    for word in words.split():
-        vec = emb.vec_2d(word)
-        if vec is None:
-            continue
 
-        # Confirmed word in vocab so we add a new trace to the list.
-        trace = go.Scatter(x=[vec[0]],
-                           y=[vec[1]],
-                           mode='markers',
-                           marker={'size': 12},
-                           name=word,
-                           text=word,
-                           hoverinfo='x+y+text')
-        traces.append(trace)
+    # Only add traces when user submits a new word, otherwise new callbacks
+    # will start before previous ones complete and PCA will be run repeatedly.
+    if words.endswith('\n'):
 
-    layout = go.Layout(showlegend=True)
-    fig = go.Figure(data=traces,
-                    layout=layout)
-    return dcc.Graph(figure=fig)
+        # New trace for each word (with a single trace, we lose the legend).
+        for word in words.split():
+            vec = emb.vec_2d(word)
+            print('vec', vec)
+            if vec is None:
+                continue
+
+            # Confirmed word in vocab so we add a new trace to the list.
+            trace = go.Scatter(x=[vec[0]],
+                               y=[vec[1]],
+                               mode='markers',
+                               marker={'size': 12},
+                               name=word,
+                               text=word,
+                               hoverinfo='x+y+text')
+            traces.append(trace)
+
+    # return traces
+    return go.Figure(data=traces,
+                     layout=go.Layout(showlegend=True))
 
 
 if __name__ == '__main__':
