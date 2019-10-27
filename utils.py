@@ -1,3 +1,4 @@
+import dash_core_components as dcc
 import dash_table
 import numpy as np
 import pickle
@@ -57,7 +58,7 @@ class Embeddings:
         w2vec = dict()
         with open(path, 'r') as f:
             for i, line in enumerate(f):
-                if i > max_words: break  # Faster testing
+                if i >= max_words: break  # Faster testing
                 word, *nums = line.strip().split()
                 w2i[word] = i
                 w2vec[word] = np.array(nums, dtype=float)
@@ -163,11 +164,11 @@ class Embeddings:
             Vector for the input word.
         distance: str
             Specifies what distance metric to use for calculations.
-            One of ('euclidean', 'cosine'). In a high-dimensional space such
-            as this, cosine may be more appropriate, but euclidean is left as
-            the default since a. this seems to be the expected distance metric
-            in most cases and b. this may be more easily interpretable for
-            the average person.
+            One of ('euclidean', 'manhattan', 'cosine'). In a high-dimensional
+            space such as this, cosine may be more appropriate, but euclidean
+            is left as the default since a. this seems to be the expected
+            distance metric in most cases and b. this may be more easily
+            interpretable for the average person.
 
         Returns
         -------
@@ -175,9 +176,11 @@ class Embeddings:
             vocabulary.
         """
         if distance == 'euclidean':
-            return self.norm(self.mat - vec)
+            dists = self.norm(self.mat - vec)
         elif distance == 'cosine':
             dists = self.cosine_distance(vec, self.mat)
+        elif distance == 'manhattan':
+            dists = self.manhattan_distance(vec, self.mat)
         return dists
 
     def nearest_neighbors(self, word, n=5, distance='euclidean', digits=2):
@@ -193,7 +196,7 @@ class Embeddings:
             Number of neighbors to return.
         distance: str
             Distance method to use when computing nearest neighbors. One of
-            ('euclidean', 'cosine').
+            ('euclidean', 'manhattan', 'cosine').
         digits: int
             Digits to round output distances to.
 
@@ -206,7 +209,8 @@ class Embeddings:
             return None
         return self._nearest_neighbors(self.vec(word), n, distance, digits)
 
-    def _nearest_neighbors(self, vec, n=5, distance='euclidean', digits=2):
+    def _nearest_neighbors(self, vec, n=5, distance='euclidean', digits=2,
+                           skip_first=True):
         """Internal function behind nearest_neighbors(). This can be used if
         we want to pass in a vector instead of a word. For more details, see
         the wrapper method.
@@ -217,17 +221,26 @@ class Embeddings:
         n: int
         distance: str
         digits: int
+        skip_first: bool
+            If True, the nearest result will be sliced off (this is desirable
+            when searching for a word's nearest neighbors, where we don't want
+            to return the word itself). When finding analogies or performing
+            embedding arithmetic, however, we likely don't want to slice off
+            the first result.
 
         Returns
         -------
         dict[str, float]: Dictionary mapping word to distance.
         """
         dists = self._distances(vec, distance)
-        idx = np.argsort(dists)[1:n+1]
+        idx = np.argsort(dists)[slice(skip_first, skip_first+n)]
         return {self.i2w[i]: round(dists[i], digits) for i in idx}
 
-    def analogy(self, a, b, c, **kwargs):
-        """Fill in the analogy: a is to b as c is to ___.
+    def analogy(self, a, b, c, n=5, **kwargs):
+        """Fill in the analogy: A is to B as C is to ___. Note that we always
+        treat A and B as valid candidates to fill in the blank. C is
+        only considered as a candidate in the trivial case where A=B, in which
+        case C should be the first choice.
 
         Parameters
         ----------
@@ -237,18 +250,38 @@ class Embeddings:
             Second word in analogy.
         c: str
             Third word in analogy.
-        kwargs
+        n: int
+            Number of candidates to return. Note that we specify this
+            separately fro kwargs since we need to alter its value before
+            passing it to _nearest_neighbors(). This will allow us to remove
+            the word c as a candidate if it is returned.
+        kwargs: distance (str), digits (int)
+            See _nearest_neighbors for details.
 
         Returns
         -------
-        str: Word that would complete the analogy.
+        list[str]: Best candidates to complete the analogy in descending order
+            of likelihood.
         """
         # If any words missing from vocab, arithmetic w/ None will throw error.
         try:
             vec = self.vec(b) - self.vec(a) + self.vec(c)
         except TypeError:
             return None
-        return self._nearest_neighbors(vec, **kwargs)
+
+        # Except for trivial edge case, return 1 extra value in case neighbors
+        # includes c, which will be removed in these situations.
+        a, b, c = a.lower(), b.lower(), c.lower()
+        trivial = (a == b)
+        neighbors = self._nearest_neighbors(vec,
+                                            n=n+1-trivial,
+                                            skip_first=False,
+                                            **kwargs)
+        if not trivial and c in neighbors:
+            neighbors.pop(c)
+
+        # Relies on dicts being ordered in python >= 3.6.
+        return list(neighbors)[:n]
 
     def cbow(self, *args):
         """Wrapper to _cbow() that allows us to pass in strings instead of
@@ -304,7 +337,7 @@ class Embeddings:
         vec_avg = self.cbow(*args)
         print(vec_avg)
         # TODO: Maybe need error checking here.
-        return self._nearest_neighbors(vec_avg, **kwargs)
+        return self._nearest_neighbors(vec_avg, **kwargs, skip_first=False)
 
     def mat_2d(self):
         """Compress the embedding matrix into 2 dimensions for human-readable
@@ -337,17 +370,38 @@ class Embeddings:
         """
         return np.sqrt(np.sum(vec ** 2, axis=-1))
 
+    @staticmethod
+    def manhattan_distance(vec1, vec2):
+        """Compute L1 distance between two vectors.
+
+        Parameters
+        ----------
+        vec1: np.array
+        vec2: np.array
+
+        Returns
+        -------
+        float or np.array: Manhattan distance between vec1 and vec2. If two
+            vectors are passed in, the output will be a single number. When
+            computing distances between a vector and a matrix, the output
+            will be a vector (np.array).
+        """
+        return np.sum(abs(vec1 - vec2), axis=-1)
+
     def cosine_distance(self, vec1, vec2):
         """Compute cosine distance between two vectors.
 
         Parameters
         ----------
-        vec1
-        vec2
+        vec1: np.array
+        vec2: np.array
 
         Returns
         -------
-        float: Cosine distance between vec1 and vec2.
+        float or np.array: Cosine distance between vec1 and vec2. If two
+            vectors are passed in, the output will be a single number. When
+            computing distances between a vector and a matrix, the output
+            will be a vector (np.array).
         """
         return 1 - (np.sum(vec1 * vec2, axis=-1) /
                     (self.norm(vec1) * self.norm(vec2)))
@@ -364,6 +418,9 @@ class Embeddings:
     def __iter__(self):
         for word in self.w2i.keys():
             yield word
+
+    def __repr__(self):
+        return f'Embeddings(len={len(self)}, dim={self.dim})'
 
 
 def get_empty_table_data(cols, nrows=5):
@@ -398,3 +455,21 @@ def empty_table(cols, id_, nrows=5):
                                 id=id_)
 
 
+def distance_selector(id_):
+    """Create radio button dash component to select distance metric.
+
+    Parameters
+    ----------
+    id_: str
+        ID of dash component to allow for use in callbacks.
+
+    Returns
+    -------
+    dcc.RadioItems
+    """
+    return dcc.RadioItems(
+        options=[{'label': x, 'value': x}
+                 for x in ['euclidean', 'cosine', 'manhattan']],
+        value='euclidean',
+        id=id_
+    )
