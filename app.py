@@ -35,10 +35,7 @@ div_similar = html.Div([
             className='three columns'
         ),
         html.Div(
-            dcc.RadioItems(options=[{'label': x, 'value': x} for x in
-                                    ['euclidean', 'cosine', 'manhattan']],
-                           value='euclidean',
-                           id='distance_selector'),
+            distance_selector('distance_selector'),
             className='four columns'
         )
     ], className='row'),
@@ -69,21 +66,14 @@ div_analogy = html.Div([
                 'for more challenging analogies.'),
             className='six columns'),
         html.Div(
-            dcc.RadioItems(options=[{'label': x, 'value': x} for x in
-                                    ['euclidean', 'cosine', 'manhattan']],
-                           value='euclidean',
-                           id='analogy_distance_selector'),
+            distance_selector('analogy_distance_selector'),
             className='three columns'
         )
     ], className='row'),
     html.Div([
-        html.Div(
-            dcc.Input(debounce=True, id='a'), className='three columns'
-        ),
+        html.Div(dcc.Input(debounce=True, id='a'), className='three columns'),
         html.H6('is to', className='two columns'),
-        html.Div(
-            dcc.Input(debounce=True, id='b', className='three columns')
-        ),
+        html.Div(dcc.Input(debounce=True, id='b', className='three columns')),
         html.H6('as', className='one column'),
         html.Div(dcc.Input(id='c'), className='two columns'),
     ], className='row'),
@@ -91,26 +81,40 @@ div_analogy = html.Div([
     empty_table(['Word'], id_='d')])
 
 
-div_add = html.Div([html.H2('Arithmetic'),
-                    # dcc.Dropdown(options=[{'label': word, 'value': word}
-                    #                       for word in emb])
-                    distance_selector('add_distance_selector')
-                    ])
+div_add = html.Div([
+    html.Div([
+        html.H4('Arithmetic', className='six columns'),
+        html.H4('Distance Metric', className='three columns')
+    ], className='row'),
+    html.Div([
+        html.Div(),
+        html.Div(distance_selector('add_distance_selector'),
+                 className='three columns')
+    ], className='row')
+])
 
 
 div_cbow = html.Div([
-    html.H4('Bag of Words'),
-    dcc.Markdown('Enter words in the text area below, separated by spaces. '
-                 'Hit *ENTER* to submit. This will compute the mean embedding '
-                 'of all input words and search for the word whose embedding '
-                 'most closely matches this average. Note that this is '),
-    html.Div(
-        dcc.RadioItems(options=[{'label': x, 'value': x} for x in
-                                ['euclidean', 'cosine', 'manhattan']],
-                       value='euclidean',
-                       id='cbow_distance_selector'),
-        className='four columns'
-    ),
+    html.Div([
+        html.H4('Bag of Words', className='six columns'),
+        html.H4('Distance Metric', className='three columns'),
+    ], className='row'),
+    html.Div([
+        html.Div(
+        dcc.Markdown('Enter words in the text area below, separated by '
+                     'spaces. Hit *Enter* to submit. This will compute the '
+                     'mean embedding of all input words and search for the '
+                     'word whose embedding most closely matches this average. '
+                     'While averaging over a bag of words in this manner can '
+                     'be somewhat effective at tasks like identifying similar '
+                     'documents, my brief experiments here looking for single '
+                     'words near the average embedding did not yield '
+                     'particularly promising results. Perhaps with some '
+                     'adjustments, something useful might emerge.'),
+            className='six columns'),
+        html.Div(distance_selector('cbow_distance_selector'),
+                 className='three columns')
+    ], className='row'),
     dcc.Textarea(value='',
                  style={'width': '100%'},
                  id='cbow_selector'),
