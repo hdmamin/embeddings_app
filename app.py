@@ -29,29 +29,32 @@ div_similar = html.Div([
                    id='distance_selector'),
     html.H4('Similar Words'),
     empty_table(['Word', 'Distance'], 'output'),
-    ], id='similar')
+], id='similar')
 
-div_analogy = html.Div([html.H2('Analogies'),
-                        html.Div([
-                            dcc.Input(id='a'),
-                            html.Div('is to'),
-                            dcc.Input(id='b')
-                        ], className='row'),
-                        dcc.Input(id='c'),
-                        empty_table(['Word'], id_='d')])
+div_analogy = html.Div([
+    html.H2('Analogies'),
+    html.Div([
+        dcc.Input(id='a'),
+        html.Div('is to'),
+        dcc.Input(id='b')
+    ], className='row'),
+    html.Div('as'),
+    dcc.Input(id='c'),
+    html.Div('is to'),
+    empty_table(['Word'], id_='d')])
 
 div_add = html.Div(html.H2('Arithmetic'))
 
-div_detypo = html.Div(html.H2('Spell Check'))
-
-div_cbow = html.Div(html.H2('Bag of Words'))
+div_cbow = html.Div([
+    html.H2('Bag of Words'),
+    dcc.Textarea(value='',
+                 style={'width': '100%'},
+                 id='cbow_selector'),
+    empty_table(['Word'], id_='cbow_table')
+])
 
 div_plot = html.Div([
     html.H2('2D Projection'),
-                     # dcc.Dropdown(options=[{'label': k, 'value': k}
-                     #                       for k in emb],
-                     #              multi=True,
-                     #              id='plot_selector'),
     dcc.Markdown('Type one or more words in the text area below. Hitting the '
                  '`enter` key will update the chart (you can do this after '
                  'each word, or type multiple space-separated words and '
@@ -80,8 +83,6 @@ app.layout = html.Div([html.H1('Fun With Embeddings'),
                                                   value='analogy'),
                                           dcc.Tab(label='Arithmetic',
                                                   value='add'),
-                                          dcc.Tab(label='Spell Check',
-                                                  value='detypo'),
                                           dcc.Tab(label='CBOW',
                                                   value='cbow'),
                                           dcc.Tab(label='Plot',
@@ -99,7 +100,6 @@ def render_tab(tab):
     tab2div = dict(similar=div_similar,
                    analogy=div_analogy,
                    add=div_add,
-                   detypo=div_detypo,
                    cbow=div_cbow,
                    plot=div_plot)
     return tab2div[tab]
@@ -140,12 +140,10 @@ def update_analogy(a, b, c):
 @app.callback(Output('plot', 'figure'),
               [Input('plot_selector', 'value')])
 def update_plot(words):
-    print('\n\n\nWords', words)
-    traces = []
-
     # Only add traces when user submits a new word, otherwise callbacks will
     # overlap and PCA will be run repeatedly.
     # A new trace is used for each word so the legend can label each point.
+    traces = []
     if words.endswith('\n'):
         for word in words.split():
             vec = emb.vec_2d(word)
@@ -165,6 +163,17 @@ def update_plot(words):
 
     return go.Figure(data=traces,
                      layout=go.Layout(showlegend=True))
+
+
+@app.callback(Output('cbow_table', 'data'),
+              [Input('cbow_selector', 'value')])
+def update_cbow(words):
+    if not words.endswith('\n'):
+        return get_empty_table_data(['word'])
+
+    data = emb.cbow_neighbors(*words.split())
+    print(data, '\n\n\n\n')
+    return [{'Word': word} for word in data.keys()]
 
 
 if __name__ == '__main__':

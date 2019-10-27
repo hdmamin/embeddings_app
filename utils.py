@@ -20,6 +20,12 @@ class Embeddings:
             Dictionary mapping word to its index in the vocabulary.
         w2vec: dict[str, np.array]
             Dictionary mapping word to its embedding.
+        mat: np.array
+            Matrix of embeddings, where row i corresponds to word i in vocab.
+            If not passed in, it will be generated from w2vec and w2i.
+        mat_2d: np.array
+            Matrix output of PCA after compressing mat to vectors of length 2.
+            If None, it will be computed from mat.
         """
         self.w2i = w2i
         self.i2w = [w for w, i in sorted(self.w2i.items(), key=lambda x: x[1])]
@@ -77,6 +83,30 @@ class Embeddings:
             data = zlib.decompress(pickle.load(f))
         return cls(**pickle.loads(data))
 
+    def save(self, path, verbose=True):
+        """Save data to a compressed pickle file. This reduces the amount of
+        space needed for storage (the csv is much larger) and can let us
+        avoid running PCA and building the embedding matrix again.
+
+        Parameters
+        ----------
+        path: str
+            Path that object will be saved to.
+        verbose
+
+        Returns
+        -------
+        None
+        """
+        data = dict(w2i=self.w2i,
+                    w2vec=self.w2vec,
+                    mat=self.mat,
+                    mat_2d=self.mat_2d())
+        with open(path, 'wb') as f:
+            pickle.dump(zlib.compress(pickle.dumps(data)), f)
+        if verbose:
+            print(f'Embeddings object saved to {path}.')
+
     def _build_embedding_matrix(self):
         """Built a matrix of embeddings using the previously defined w2vec and
         w2idx.
@@ -124,23 +154,41 @@ class Embeddings:
             return self.mat_2d()[idx]
 
     def _distances(self, vec, distance='euclidean'):
+        """Find distance from an input vector to every other vector in the
+        embedding matrix.
+
+        Parameters
+        ----------
+        vec: np.array
+            Vector for the input word.
+        distance: str
+            Specifies what distance metric to use for calculations.
+            One of ('euclidean', 'cosine'). In a high-dimensional space such
+            as this, cosine may be more appropriate, but euclidean is left as
+            the default since a. this seems to be the expected distance metric
+            in most cases and b. this may be more easily interpretable for
+            the average person.
+
+        Returns
+        -------
+        np.array: The i'th value corresponds to the distance to word i in the
+            vocabulary.
+        """
         if distance == 'euclidean':
             return self.norm(self.mat - vec)
         elif distance == 'cosine':
             dists = self.cosine_distance(vec, self.mat)
         return dists
 
-    def nearest_neighbors(self, word=None, vec=None, n=5, distance='euclidean',
-                          digits=2):
-        """Find the most similar words to a given word. User must pass in
-        either a word OR a vector as the input.
+    def nearest_neighbors(self, word, n=5, distance='euclidean', digits=2):
+        """Find the most similar words to a given word. This wrapper to
+        allows the user to pass in a word. To pass in a vector, use
+        _nearest_neighbors().
 
         Parameters
         ----------
         word: str
             A word that must be in the vocabulary.
-        vec: np.array
-            A vector. This doesn't need to be in the vocabulary.
         n: int
             Number of neighbors to return.
         distance: str
@@ -153,17 +201,27 @@ class Embeddings:
         -------
         dict[str, float]: Dictionary mapping word to distance.
         """
-        assert bool(word is None) + bool(vec is None) == 1, \
-            'Pass in either word or vec.'
-
-        # If word is passed in, check that it's in vocab, then lookup vector.
-        if word is not None and word not in self:
+        # Error handling for words not in vocab.
+        if word not in self:
             return None
-        # At this point, either vec was passed in or word was passed in and is
-        # present in vocab.
-        if vec is None:
-            vec = self.vec(word)
+        return self._nearest_neighbors(self.vec(word), n, distance, digits)
 
+    def _nearest_neighbors(self, vec, n=5, distance='euclidean', digits=2):
+        """Internal function behind nearest_neighbors(). This can be used if
+        we want to pass in a vector instead of a word. For more details, see
+        the wrapper method.
+
+        Parameters
+        ----------
+        vec: np.array
+        n: int
+        distance: str
+        digits: int
+
+        Returns
+        -------
+        dict[str, float]: Dictionary mapping word to distance.
+        """
         dists = self._distances(vec, distance)
         idx = np.argsort(dists)[1:n+1]
         return {self.i2w[i]: round(dists[i], digits) for i in idx}
@@ -190,7 +248,63 @@ class Embeddings:
             vec = self.vec(b) - self.vec(a) + self.vec(c)
         except TypeError:
             return None
-        return self.nearest_neighbors(vec=vec, **kwargs)
+        return self._nearest_neighbors(vec, **kwargs)
+
+    def cbow(self, *args):
+        """Wrapper to _cbow() that allows us to pass in strings instead of
+        vectors.
+
+        Parameters
+        ----------
+        args: str
+            Multiple words to average over.
+
+        Returns
+        -------
+        np.array: Average of all input vectors. This will have the same
+            embedding dimension as each input.
+        """
+        vecs = list(filter(lambda x: x is not None,
+                           [self.vec(arg) for arg in args]))
+        return self._cbow(*vecs)
+
+    def _cbow(self, *args):
+        """Internal helper for cbow(). Can also use this directly if you want
+        to pass in vectors instead of words.
+
+        Parameters
+        ----------
+        args: np.array
+            Word vectors to average.
+
+        Returns
+        -------
+        np.array: Average of all input vectors. This will have the same
+            embedding dimension as each input.
+        """
+        return np.mean(args, axis=0)
+
+    def cbow_neighbors(self, *args, **kwargs):
+        """Wrapper to cbow(). This lets us pass in words, compute their
+        average embedding, then return the words nearest this embedding.
+
+        Parameters
+        ----------
+        args: str
+            Input words to average over.
+        kwargs: n (int), distance (str), digits (int)
+            See _nearest_neighbors() for details.
+
+        Returns
+        -------
+        dict[str, float]: Dictionary mapping word to distance from the average
+            of the input words' vectors.
+        """
+        print(args)
+        vec_avg = self.cbow(*args)
+        print(vec_avg)
+        # TODO: Maybe need error checking here.
+        return self._nearest_neighbors(vec_avg, **kwargs)
 
     def mat_2d(self):
         """Compress the embedding matrix into 2 dimensions for human-readable
@@ -233,34 +347,10 @@ class Embeddings:
 
         Returns
         -------
-
+        float: Cosine distance between vec1 and vec2.
         """
         return 1 - (np.sum(vec1 * vec2, axis=-1) /
                     (self.norm(vec1) * self.norm(vec2)))
-
-    def save(self, path, verbose=True):
-        """Save data to a compressed pickle file. This reduces the amount of
-        space needed for storage (the csv is much larger) and can let us
-        avoid running PCA and building the embedding matrix again.
-
-        Parameters
-        ----------
-        path: str
-            Path that object will be saved to.
-        verbose
-
-        Returns
-        -------
-
-        """
-        data = dict(w2i=self.w2i,
-                    w2vec=self.w2vec,
-                    mat=self.mat,
-                    mat_2d=self.mat_2d())
-        with open(path, 'wb') as f:
-            pickle.dump(zlib.compress(pickle.dumps(data)), f)
-        if verbose:
-            print(f'Embeddings object saved to {path}.')
 
     def __getitem__(self, word):
         return self.w2i.get(word.lower())
