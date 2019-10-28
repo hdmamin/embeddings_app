@@ -9,4 +9,4 @@ cd embeddings_app
 ./build.sh  
 ./run.sh  
 ```
-Then open a web browser and go to localhost:5000.
+Then open a web browser and go to localhost:5000. (Note: at the moment, the app can be a bit slow initially, so the first one or two user submissions on each tab may take a few seconds. Currently investigating this issue, which seems to be worse inside the container.)
