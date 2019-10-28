@@ -15,7 +15,10 @@ For reasons I'm still investigating, the app seems to be a bit sluggish when run
 ./app.sh download  
 python app.py
 ```
- 
+Entering Ctrl+c in your terminal will stop the app.
+
+***
+
 To run the Dockerized app instead, clone the repo and run the following commands: 
 
 ```
@@ -26,7 +29,7 @@ cd embeddings_app
 
 Then open a web browser and go to localhost:5000.
  
-To stop the app, run:
+To stop the containerized app, run:
 ```
 ./app.sh stop
 ```
