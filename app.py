@@ -12,7 +12,6 @@ CSS = ['https://codepen.io/Hmamin/pen/OJJgbBL.css']
 app = dash.Dash(__name__, external_stylesheets=CSS)
 app.config['suppress_callback_exceptions'] = True
 server = app.server
-# emb = Embeddings.from_glove_file('/Users/hmamin/data/glove/glove.6B.50d.txt')
 emb = Embeddings.from_pickle('emb.pkl')
 
 ###############################################################################
@@ -99,22 +98,24 @@ div_cbow = html.Div([
     ], className='row'),
     html.Div([
         html.Div(
-        dcc.Markdown('Enter words in the text area below, separated by '
-                     'spaces. Hit *Enter* to submit. This will compute the '
-                     'mean embedding of all input words and search for the '
-                     'word whose embedding most closely matches this average. '
-                     'While averaging over a bag of words in this manner can '
-                     'be somewhat effective at tasks like identifying similar '
-                     'documents, my brief experiments here looking for single '
-                     'words near the average embedding did not yield '
-                     'particularly promising results. Perhaps with some '
-                     'adjustments, something useful might emerge.'),
+            dcc.Markdown('Enter words in the text area below, separated by '
+                         'spaces. Hit *Enter* to submit. This will compute '
+                         'the mean embedding of all input words and search '
+                         'for the word whose embedding most closely matches '
+                         'this average. The input words are excluded as '
+                         'possible matches.'
+                         '\nBy inputting several similar words, you may '
+                         'be able to find additional words that belong to '
+                         'that group. You could also try mixing two very '
+                         'different words, though in my brief experiments '
+                         'this wasn\'t as effective.'),
             className='six columns'),
         html.Div(distance_selector('cbow_distance_selector'),
                  className='three columns')
     ], className='row'),
-    dcc.Textarea(value='',
-                 style={'width': '100%'},
+    dcc.Textarea(placeholder='ex: angry sad',
+                 value='',
+                 style={'width': '100%', 'height': '100px'},
                  id='cbow_selector'),
     empty_table(['Word'], id_='cbow_table')
 ])
@@ -126,16 +127,16 @@ div_plot = html.Div([
                  '`enter` key will update the chart (you can do this after '
                  'each word, or type multiple space-separated words and '
                  'submit at the end). If a word doesn\'t show up on the plot, '
-                 'it means it\'s not present in our embedding vocabulary.'),
+                 'it means it\'s not present in our embedding vocabulary.'
+                 '\n\nNote: these axes don\'t correspond to any particular '
+                 'dimension that we can interpret. They are simply the result '
+                 'of using PCA to reduce the embedding dimensionality to 2.'),
     dcc.Textarea(value='scientist engineer developer statistician\n',
-                 style={'width': '100%'},
+                 style={'width': '100%', 'height': '120px'},
                  id='plot_selector'),
     dcc.Graph(figure=go.Figure(data=[],
                                layout=go.Layout(showlegend=True)),
-              id='plot'),
-    html.Div('Note: these axes don\'t correspond to any particular dimension '
-             'that we can interpret. They are simply the result of using PCA '
-             'to reduce the embedding dimensionality to 2.')
+              id='plot')
 ])
 
 ###############################################################################
@@ -235,13 +236,16 @@ def update_plot(words):
               [Input('cbow_selector', 'value'),
                Input('cbow_distance_selector', 'value')])
 def update_cbow(words, distance):
-    if not words.endswith('\n'):
-        return get_empty_table_data(['word'])
+    empty_data = get_empty_table_data(['word'])
+    if not words.endswith('\n') or not words.strip('\n'):
+        return empty_data
 
     data = emb.cbow_neighbors(*words.split(), distance=distance)
+    if not data:
+        return empty_data
     print('UPDATE_CBOW data:', data, '\n\n\n\n')
     return [{'Word': word} for word in data.keys()]
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True, port=5000)
+    app.run_server(host='0.0.0.0', debug=True, port=5000)

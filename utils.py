@@ -279,9 +279,9 @@ class Embeddings:
         np.array: Average of all input vectors. This will have the same
             embedding dimension as each input.
         """
-        vecs = list(filter(lambda x: x is not None,
-                           [self.vec(arg) for arg in args]))
-        return self._cbow(*vecs)
+        vecs = [arg for arg in map(self.vec, args) if arg is not None]
+        if vecs:
+            return self._cbow(*vecs)
 
     def _cbow(self, *args):
         """Internal helper for cbow(). Can also use this directly if you want
@@ -299,15 +299,22 @@ class Embeddings:
         """
         return np.mean(args, axis=0)
 
-    def cbow_neighbors(self, *args, **kwargs):
+    def cbow_neighbors(self, *args, n=5, **kwargs):
         """Wrapper to cbow(). This lets us pass in words, compute their
-        average embedding, then return the words nearest this embedding.
+        average embedding, then return the words nearest this embedding. The
+        input words are not considered to be candidates for neighbors (e.g. if
+        you input the words 'happy' and 'cheerful', the neighbors returned will
+        not include those words even if they are the closest to the mean
+        embedding). The idea here is to find additional words that may be
+        similar to the group you've passed in.
 
         Parameters
         ----------
         args: str
             Input words to average over.
-        kwargs: n (int), distance (str), digits (int)
+        n: int
+            Number of neighbors to return.
+        kwargs: distance (str), digits (int)
             See _nearest_neighbors() for details.
 
         Returns
@@ -317,9 +324,16 @@ class Embeddings:
         """
         print('CBOW_NEIGHBORS args:', args)
         vec_avg = self.cbow(*args)
-        print('CBOW_NEIGHBORS vec_avg:', vec_avg)
-        # TODO: Maybe need error checking here.
-        return self._nearest_neighbors(vec_avg, **kwargs, skip_first=False)
+        if vec_avg is None:
+            return
+        neighbors = self._nearest_neighbors(vec_avg, n=len(args)+n,
+                                            skip_first=False, **kwargs)
+
+        # Lowercase to help remove duplicates.
+        args = set(arg.lower() for arg in args)
+        return {word: neighbors[word]
+                for word in
+                [n for n in neighbors if n not in args][:n]}
 
     def mat_2d(self):
         """Compress the embedding matrix into 2 dimensions for human-readable

@@ -1,0 +1,16 @@
+FROM ubuntu
+
+LABEL maintainer=@hmamin
+
+RUN apt-get update && \
+    apt-get install -y python3-pip
+
+WORKDIR /app
+
+COPY . /app
+
+RUN pip3 install -r requirements.txt && \
+    chmod u+x download_data.sh && \
+    ./download_data.sh
+
+CMD ["sh", "-c", "python3 app.py"]
