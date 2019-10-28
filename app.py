@@ -88,7 +88,7 @@ div_cbow = html.Div([
     html.Div([
         html.Div(
             dcc.Markdown('Enter words in the text area below, separated by '
-                         'spaces. Hit *Enter* to submit. This will compute '
+                         'spaces. Hit `Enter` to submit. This will compute '
                          'the mean embedding of all input words and search '
                          'for the word whose embedding most closely matches '
                          'this average. The input words are excluded as '
@@ -113,15 +113,14 @@ div_cbow = html.Div([
 div_plot = html.Div([
     html.H4('2D Projection'),
     dcc.Markdown('Type one or more words in the text area below. Hitting the '
-                 '`enter` key will update the chart (you can do this after '
+                 '`Enter` key will update the chart (you can do this after '
                  'each word, or type multiple space-separated words and '
                  'submit at the end). If a word doesn\'t show up on the plot, '
                  'it means it\'s not present in our embedding vocabulary.'
                  '\n\nNote: these axes don\'t correspond to any particular '
                  'dimension that we can interpret. They are simply the result '
                  'of using PCA to reduce the embedding dimensionality to 2.'),
-    dcc.Textarea(placeholder='scientist engineer developer statistician',
-                 value='',
+    dcc.Textarea(value='scientist engineer developer statistician\n',
                  style={'width': '100%', 'height': '120px'},
                  id='plot_selector'),
     dcc.Graph(figure=go.Figure(data=[],

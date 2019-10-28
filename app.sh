@@ -1,6 +1,9 @@
 #!/bin/bash
 
-if [ $1 == "build" ]
+if [ $1 == "download" ]
+then
+    gdown https://drive.google.com/uc?id=1c0v0IDWfBFyVneRcjjC5BkOjITGSiD4_ -O emb.pkl
+elif [ $1 == "build" ]
 then
     docker build -t embedding-tool .
 elif [ $1 == "run" ]
