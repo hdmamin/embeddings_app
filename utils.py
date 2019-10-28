@@ -322,7 +322,6 @@ class Embeddings:
         dict[str, float]: Dictionary mapping word to distance from the average
             of the input words' vectors.
         """
-        print('CBOW_NEIGHBORS args:', args)
         vec_avg = self.cbow(*args)
         if vec_avg is None:
             return

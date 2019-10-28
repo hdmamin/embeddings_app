@@ -14,6 +14,7 @@ app.config['suppress_callback_exceptions'] = True
 server = app.server
 emb = Embeddings.from_pickle('emb.pkl')
 
+
 ###############################################################################
 # App components
 ###############################################################################
@@ -60,7 +61,8 @@ div_analogy = html.Div([
                 '\n\nA few classic examples where the embeddings work '
                 'reasonably well are "king is to queen as man is to \_" or '
                 '"Paris is to France as Madrid is to \_". Results are mixed '
-                'for more challenging analogies.'),
+                'for more challenging analogies.'
+            ),
             className='six columns'),
         html.Div(
             distance_selector('analogy_distance_selector'),
@@ -76,19 +78,6 @@ div_analogy = html.Div([
     ], className='row'),
     html.H6('is to'),
     empty_table(['Word'], id_='d')])
-
-
-div_add = html.Div([
-    html.Div([
-        html.H4('Arithmetic', className='six columns'),
-        html.H4('Distance Metric', className='three columns')
-    ], className='row'),
-    html.Div([
-        html.Div(),
-        html.Div(distance_selector('add_distance_selector'),
-                 className='three columns')
-    ], className='row')
-])
 
 
 div_cbow = html.Div([
@@ -131,13 +120,28 @@ div_plot = html.Div([
                  '\n\nNote: these axes don\'t correspond to any particular '
                  'dimension that we can interpret. They are simply the result '
                  'of using PCA to reduce the embedding dimensionality to 2.'),
-    dcc.Textarea(value='scientist engineer developer statistician\n',
+    dcc.Textarea(placeholder='scientist engineer developer statistician',
+                 value='',
                  style={'width': '100%', 'height': '120px'},
                  id='plot_selector'),
     dcc.Graph(figure=go.Figure(data=[],
                                layout=go.Layout(showlegend=True)),
               id='plot')
 ])
+
+
+div_add = html.Div([
+    html.Div([
+        html.H4('Arithmetic', className='six columns'),
+        html.H4('Distance Metric', className='three columns')
+    ], className='row'),
+    html.Div([
+        html.Div(),
+        html.Div(distance_selector('add_distance_selector'),
+                 className='three columns')
+    ], className='row')
+])
+
 
 ###############################################################################
 # Main tab layout
@@ -148,14 +152,16 @@ app.layout = html.Div([html.H1('Fun With Embeddings'),
                                                   value='similar'),
                                           dcc.Tab(label='Analogies',
                                                   value='analogy'),
-                                          dcc.Tab(label='Arithmetic',
-                                                  value='add'),
                                           dcc.Tab(label='Bag of Words',
                                                   value='cbow'),
                                           dcc.Tab(label='Plot',
-                                                  value='plot')]),
+                                                  value='plot'),
+                                          dcc.Tab(label='Arithmetic',
+                                                  value='add')
+                                          ]),
                        html.Div(id='content_div')],
                       className='container')
+
 
 ###############################################################################
 # App callbacks
@@ -189,13 +195,10 @@ def update_similar(word, distance):
                Input('c', 'value'),
                Input('analogy_distance_selector', 'value')])
 def update_analogy(a, b, c, distance):
-    print(a, b, c)
     if not (a and b and c):
         return get_empty_table_data(['Word'])
 
     words = emb.analogy(a, b, c, distance=distance)
-    print(words)
-
     # Error handling for partially typed words or words not in vocab.
     if not words:
         return get_empty_table_data(['Word'])
@@ -207,14 +210,12 @@ def update_analogy(a, b, c, distance):
 @app.callback(Output('plot', 'figure'),
               [Input('plot_selector', 'value')])
 def update_plot(words):
-    # Only add traces when user submits a new word, otherwise callbacks will
-    # overlap and PCA will be run repeatedly.
+    # Only add traces when user submits a new word so callbacks don't overlap.
     # A new trace is used for each word so the legend can label each point.
     traces = []
     if words.endswith('\n'):
         for word in words.split():
             vec = emb.vec_2d(word)
-            print('vec', vec)
             if vec is None:
                 continue
 
@@ -243,7 +244,6 @@ def update_cbow(words, distance):
     data = emb.cbow_neighbors(*words.split(), distance=distance)
     if not data:
         return empty_data
-    print('UPDATE_CBOW data:', data, '\n\n\n\n')
     return [{'Word': word} for word in data.keys()]
 
 
