@@ -130,19 +130,6 @@ div_plot = html.Div([
 ])
 
 
-div_add = html.Div([
-    html.Div([
-        html.H4('Arithmetic', className='six columns'),
-        html.H4('Distance Metric', className='three columns')
-    ], className='row'),
-    html.Div([
-        html.Div(),
-        html.Div(distance_selector('add_distance_selector'),
-                 className='three columns')
-    ], className='row')
-])
-
-
 ###############################################################################
 # Main tab layout
 ###############################################################################
@@ -156,8 +143,6 @@ app.layout = html.Div([html.H1('Fun With Embeddings'),
                                                   value='cbow'),
                                           dcc.Tab(label='Plot',
                                                   value='plot'),
-                                          dcc.Tab(label='Arithmetic',
-                                                  value='add')
                                           ]),
                        html.Div(id='content_div')],
                       className='container')
@@ -171,7 +156,6 @@ app.layout = html.Div([html.H1('Fun With Embeddings'),
 def render_tab(tab):
     tab2div = dict(similar=div_similar,
                    analogy=div_analogy,
-                   add=div_add,
                    cbow=div_cbow,
                    plot=div_plot)
     return tab2div[tab]
