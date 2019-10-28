@@ -5,6 +5,7 @@ This app lets you experiment with the 50d GloVe embeddings (https://nlp.stanford
 To run the app, clone the repo and run the following shell scripts.
 ```
 git clone git@github.com:hdmamin/embeddings_app.git  
+cd embeddings_app
 ./build.sh  
 ./run.sh  
 ```
