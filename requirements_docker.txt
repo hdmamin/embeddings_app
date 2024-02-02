@@ -1,5 +1,5 @@
 # Docker image comes with numpy and scikit-learn.
-dash==1.4.1
+dash==2.15.0
 dash_table==4.4.1
 gdown==3.8.3
 plotly==4.2.1
